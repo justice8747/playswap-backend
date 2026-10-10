@@ -54,16 +54,18 @@ public class TokenEncryptionConverter implements AttributeConverter<String, Stri
 
     @Override
     public String convertToEntityAttribute(String dbData) {
-        if (dbData == null) {
-            return null;
+        if (dbData == null || dbData.isBlank()) {
+            return dbData;
         }
         try {
+            byte[] decoded = Base64.getDecoder().decode(dbData);
             Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
             cipher.init(Cipher.DECRYPT_MODE, getKey());
-            return new String(cipher.doFinal(Base64.getDecoder().decode(dbData)), StandardCharsets.UTF_8);
+            return new String(cipher.doFinal(decoded), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            log.error("Failed to decrypt stored OAuth token", e);
-            throw new RuntimeException("Decryption error", e);
+            // Graceful fallback if token was stored in plain text prior to encryption
+            log.warn("Stored OAuth token could not be decrypted via AES; treating as legacy unencrypted token: {}", e.getMessage());
+            return dbData;
         }
     }
 }
